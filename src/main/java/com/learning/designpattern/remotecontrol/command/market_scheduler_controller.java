@@ -1,12 +1,5 @@
-package com.example.market.scheduler;
+package com.learning.designpattern.remotecontrol.command;
 
-import com.example.market.client.MarketDataClient;
-import com.example.market.client.MarketDataResponse;
-import com.example.market.client.SymbolPrice;
-import com.example.market.repo.CompanyRepository;
-import com.example.market.service.PriceDataService;
-import com.example.market.util.BatchUtils;
-import com.example.market.util.MarketTimeUtils;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -17,22 +10,10 @@ import java.util.stream.Collectors;
 public class JobWorkerScheduler {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> scheduledFuture;
-
-    private final CompanyRepository companyRepo;
-    private final PriceDataService priceService;
-    private final MarketDataClient marketDataClient;
-
     private final ExecutorService executor = Executors.newFixedThreadPool(10);
-    private final Set<String> invalidSymbols = ConcurrentHashMap.newKeySet();
-    private List<String> cachedSymbols = new ArrayList<>();
-    private Instant lastFetchTime = Instant.MIN;
 
-    public JobWorkerScheduler(CompanyRepository companyRepo,
-                              PriceDataService priceService,
-                              MarketDataClient marketDataClient) {
-        this.companyRepo = companyRepo;
-        this.priceService = priceService;
-        this.marketDataClient = marketDataClient;
+    public JobWorkerScheduler() {
+       
     }
 
     public void start() {
@@ -48,48 +29,24 @@ public class JobWorkerScheduler {
     }
 
     public void runJob() {
-        if (!MarketTimeUtils.isMarketOpenNow()) return;
-
+       
         Instant now = Instant.now();
-        if (Duration.between(lastFetchTime, now).getSeconds() >= 60) {
-            cachedSymbols = companyRepo.getAllSymbols();
-            priceService.insertMissingSymbols(cachedSymbols);
-            lastFetchTime = now;
-        }
+        /**if (dy hndlng) {
+            //insrt
+        }**/
 
-        List<String> toQuery = cachedSymbols.stream()
-            .filter(s -> !invalidSymbols.contains(s))
-            .map(s -> s + "-USA")
-            .toList();
-
-        List<List<String>> batches = BatchUtils.partition(toQuery, 100);
-        for (List<String> batch : batches) {
-            executor.submit(() -> processBatch(batch));
-        }
+        //do process
     }
 
     private void processBatch(List<String> batch) {
-        MarketDataResponse response = marketDataClient.fetchPrices(batch);
-        Set<String> returned = response.getValidPrices().stream()
-            .map(p -> p.symbol)
-            .collect(Collectors.toSet());
-
-        List<String> original = batch.stream()
-            .map(s -> s.replace("-USA", ""))
-            .toList();
-
-        List<String> missing = original.stream()
-            .filter(s -> !returned.contains(s))
-            .toList();
-
-        priceService.updatePrices(response.getValidPrices());
-        invalidSymbols.addAll(missing);
+        //update db
+        //invalid list
     }
 }
 
 
 // -- JobControllerScheduler.java --
-package com.example.market.scheduler;
+package com.learning.designpattern.remotecontrol.command;
 
 import java.util.concurrent.*;
 
@@ -106,6 +63,7 @@ public class JobControllerScheduler {
     }
 
     public void start() {
+        //is open
         if (controllerFuture == null || controllerFuture.isCancelled()) {
             controllerFuture = controllerScheduler.scheduleWithFixedDelay(() -> {
                 if (lockService.tryAcquireLock("market-data-job")) {
